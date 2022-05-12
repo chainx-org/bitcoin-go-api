@@ -2,6 +2,7 @@
 #define Musig2Header_h
 
 #include <stdio.h>
+#include <stdint.h>
 
 #endif /* Musig2Header_h */
 
