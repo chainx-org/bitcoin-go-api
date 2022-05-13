@@ -14,6 +14,7 @@ import (
 	"unsafe"
 )
 
+// Just check if the result is hex string
 func verifyResult(result *C.char) (string, error) {
 	output := C.GoString(result)
 	_, err := hex.DecodeString(output)
@@ -24,6 +25,8 @@ func verifyResult(result *C.char) (string, error) {
 	}
 }
 
+// Generate the private key from the mnemonic phrases,
+// and the default derived password is empty.
 func GetMyPrivkey(phrase string, passphrase string) (string, error) {
 	cPhrase := C.CString(phrase)
 	defer C.free(unsafe.Pointer(cPhrase))
@@ -33,6 +36,7 @@ func GetMyPrivkey(phrase string, passphrase string) (string, error) {
 	return verifyResult(result)
 }
 
+// Generate the corresponding public key from the private key.
 func GetMyPubkey(priv string) (string, error) {
 	cPriv := C.CString(priv)
 	defer C.free(unsafe.Pointer(cPriv))
@@ -40,10 +44,16 @@ func GetMyPubkey(priv string) (string, error) {
 	return verifyResult(result)
 }
 
+// No parameters are needed to get the state pointer for the
+// first round. Note that manual release may be required at
+// the upper level.
 func GetRound1State() *C.State {
 	return C.get_round1_state()
 }
 
+// Generate bitcoin addresses
+//
+// network supports "mainnet", "testnet", "regtest", "signet"
 func GetMyAddress(pubkey string, network string) (string, error) {
 	cPubkey := C.CString(pubkey)
 	defer C.free(unsafe.Pointer(cPubkey))
@@ -53,16 +63,19 @@ func GetMyAddress(pubkey string, network string) (string, error) {
 	return C.GoString(result), nil
 }
 
+// Get the first round of messages to be broadcast
 func GetRound1Msg(state *C.State) (string, error) {
 	result := C.get_round1_msg(state)
 	return verifyResult(result)
 }
 
+// Encode the first round of state for easy local persistent storage
 func EncodeRound1State(state *C.State) (string, error) {
 	result := C.encode_round1_state(state)
 	return C.GoString(result), nil
 }
 
+// Parasing the first round of state from the local persistent store
 func DecodeRound1State(state string) *C.State {
 	cState := C.CString(state)
 	defer C.free(unsafe.Pointer(cState))
@@ -70,6 +83,7 @@ func DecodeRound1State(state string) *C.State {
 	return result
 }
 
+// Get the second round of messages to be broadcast
 func GetRound2Msg(state *C.State, msg string, priv string, pubkeys []string, receivedRound1Msg []string) (string, error) {
 	cMsg := C.CString(msg)
 	defer C.free(unsafe.Pointer(cMsg))
@@ -85,6 +99,7 @@ func GetRound2Msg(state *C.State, msg string, priv string, pubkeys []string, rec
 	return verifyResult(result)
 }
 
+// Generate the final signature using all the messages from the second round
 func GetAggSignature(round2Msg []string) (string, error) {
 	allRound2Msg := strings.Join(round2Msg, "")
 	cAllRound2Msg := C.CString(allRound2Msg)
@@ -93,6 +108,9 @@ func GetAggSignature(round2Msg []string) (string, error) {
 	return verifyResult(result)
 }
 
+// Aggregate multiple public keys into one public key
+//
+// pubkey is full public key, 65 bytes
 func GetAggPublicKey(pubkeys []string) (string, error) {
 	allPubkeys := strings.Join(pubkeys, "")
 	cAllPubkeys := C.CString(allPubkeys)
@@ -101,6 +119,7 @@ func GetAggPublicKey(pubkeys []string) (string, error) {
 	return verifyResult(result)
 }
 
+// Generate threshold signature public key
 func GenerateThresholdPubkey(pubkeys []string, threshold uint8) (string, error) {
 	allPubkeys := strings.Join(pubkeys, "")
 	cAllPubkeys := C.CString(allPubkeys)
@@ -109,6 +128,10 @@ func GenerateThresholdPubkey(pubkeys []string, threshold uint8) (string, error) 
 	return verifyResult(result)
 }
 
+// Generate a proof of the aggregated public key by
+// passing in the public key and signature threshold of
+// all signers and the aggregated public key of everyone
+// who performed the signature this time.
 func GenerateControlBlock(pubkeys []string, threshold uint8, aggPubkey string) (string, error) {
 	allPubkeys := strings.Join(pubkeys, "")
 	cAllPubkeys := C.CString(allPubkeys)
@@ -119,6 +142,7 @@ func GenerateControlBlock(pubkeys []string, threshold uint8, aggPubkey string) (
 	return verifyResult(result)
 }
 
+// Generate schnorr signature.
 func GenerateSchnorrSignature(message string, privkey string) (string, error) {
 	cMessage := C.CString(message)
 	defer C.free(unsafe.Pointer(cMessage))
@@ -128,6 +152,7 @@ func GenerateSchnorrSignature(message string, privkey string) (string, error) {
 	return verifyResult(result)
 }
 
+// Generate script pubkey from address
 func GetScriptPubkey(addr string) (string, error) {
 	cAddr := C.CString(addr)
 	defer C.free(unsafe.Pointer(cAddr))
@@ -135,6 +160,7 @@ func GetScriptPubkey(addr string) (string, error) {
 	return verifyResult(result)
 }
 
+// Add the first input[txid + outpoint's index] to initialize basic transactions
 func GenerateRawTx(prevTxs []string, txids []string, inputIndexs []uint32, addresses []string, amounts []uint64) (string, error) {
 	if len(txids) != len(inputIndexs) {
 		return "", errors.New("txids and inputIndexs must be the same length")
@@ -177,6 +203,13 @@ func GenerateRawTx(prevTxs []string, txids []string, inputIndexs []uint32, addre
 	return verifyResult(baseTx)
 }
 
+// Calculate the sighash of the transaction input
+//
+// Passing the previous transaction and the constructed transaction
+// and the previous transaction outpoint index to calculate Sighash.
+//
+// [`agg_pubkey`]: required when spending by script, pass in a null value when spending by path
+// [`sigversion`]: 0 or 1, 0 is Taproot, 1 is Tapscript.
 func GetSighash(tx string, txid string, inputIndex uint32, aggPubkey string, sigversion uint32) (string, error) {
 	cTx := C.CString(tx)
 	defer C.free(unsafe.Pointer(cTx))
@@ -188,6 +221,13 @@ func GetSighash(tx string, txid string, inputIndex uint32, aggPubkey string, sig
 	return verifyResult(result)
 }
 
+// Construct Threshold address spending transaction.
+//
+// [`base_tx`]: tx with at least one input and one output.
+// [`agg_signature`]: aggregate signature of sighash
+// [`agg_pubkey`]: signature corresponding to the aggregate public key.
+// [`control`]: control script.
+// [`input_index`]: index of the input in base_tx.
 func BuildThresholdTx(tx string, aggSignature string, aggPubkey string, control string, txid string, inputIndex uint32) (string, error) {
 	cTx := C.CString(tx)
 	defer C.free(unsafe.Pointer(cTx))
@@ -203,6 +243,11 @@ func BuildThresholdTx(tx string, aggSignature string, aggPubkey string, control 
 	return verifyResult(result)
 }
 
+// Construct normal taproot address spending transaction.
+//
+// [`base_tx`]: tx with at least one input and one output.
+// [`signature`]: signature of sighash
+// [`input_index`]: index of the input in base_tx.
 func BuildTaprootTx(tx string, signature string, txid string, inputIndex uint32) (string, error) {
 	cTx := C.CString(tx)
 	defer C.free(unsafe.Pointer(cTx))
@@ -214,6 +259,7 @@ func BuildTaprootTx(tx string, signature string, txid string, inputIndex uint32)
 	return verifyResult(result)
 }
 
+// Obtain the original unsigned transaction for testing the correctness of the transaction
 func GetUnsignedTx(tx string) (string, error) {
 	cTx := C.CString(tx)
 	defer C.free(unsafe.Pointer(cTx))
