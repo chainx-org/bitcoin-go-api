@@ -46,15 +46,21 @@ func main() {
 	}
 
 	// Cost of non-threshold signature addresses
+	// input:
 	prevTxs := []string{"020000000001014be640313b023c3c731b7e89c3f97bebcebf9772ea2f7747e5604f4483a447b601000000000000000002a0860100000000002251209a9ea267884f5549c206b2aec2bd56d98730f90532ea7f7154d4d4f923b7e3bbc027090000000000225120c9929543dfa1e0bb84891acd47bfa6546b05e26b7a04af8eb6765fcc969d565f01404dc68b31efc1468f84db7e9716a84c19bbc53c2d252fd1d72fa6469e860a74486b0990332b69718dbcb5acad9d48634d23ee9c215ab15fb16f4732bed1770fdf00000000"}
 	txids := []string{"1f8e0f7dfa37b184244d022cdf2bc7b8e0bac8b52143ea786fa3f7bbe049eeae"}
+	// index of unspent output in prevTxs
 	inputIndexs := []uint32{1}
+	// output:
 	addresses := []string{"tb1pn202yeugfa25nssxk2hv902kmxrnp7g9xt487u256n20jgahuwasdcjfdw", "35516a706f3772516e7751657479736167477a6334526a376f737758534c6d4d7141754332416255364c464646476a38", "tb1pexff2s7l58sthpyfrtx500ax234stcnt0gz2lr4kwe0ue95a2e0srxsc68"}
 	amounts := []uint64{100000, 0, 400000}
+	// unsigned tx:
+	// 1. Construct an unsigned transaction, containing all transaction information except the signature
 	baseTx, err := musig2.GenerateRawTx(prevTxs, txids, inputIndexs, addresses, amounts)
 	if err != nil {
 		log.Fatal(err)
 	}
+	// unsigned raw tx for check on chain
 	unsignedTx, err := musig2.GetUnsignedTx(baseTx)
 	if err != nil {
 		log.Fatal(err)
@@ -63,22 +69,26 @@ func main() {
 	var taprootTx string
 	for i := 0; i < len(txids); i++ {
 		privkey := "4a84a4601e463bc02dd0b8be03f3721187e9fc3105d5d5e8930ff3c8ca15cf40"
+		// 2. Calculate input sighash for one input
 		sighash, err := musig2.GetSighash(baseTx, txids[i], inputIndexs[i], "", 0)
 		log.Println("Sighash: ", sighash)
 		if err != nil {
 			log.Fatal(err)
 		}
+		// 3. Calculate signature for one input
 		schnorrSignature, err := musig2.GenerateSchnorrSignature(sighash, privkey)
 		log.Println("SchnorrSignature: ", schnorrSignature)
 		if err != nil {
 			log.Fatal(err)
 		}
+		// 4. Put signature into unsigned tx
 		taprootTx, err = musig2.BuildTaprootTx(baseTx, schnorrSignature, txids[i], inputIndexs[i])
 		if err != nil {
 			log.Fatal(err)
 		}
 		log.Println("Current Taproot Tx: ", taprootTx)
 	}
+	// 5. When all inputs have been signed, the transaction is constructed
 	log.Println("Final Taproot Tx: ", taprootTx)
 
 	// Generate threshold signature address
@@ -109,15 +119,20 @@ func main() {
 		log.Fatal(err)
 	}
 
+	// input:
 	prevTxs = []string{"02000000000101aeee49e0bbf7a36f78ea4321b5c8bae0b8c72bdf2c024d2484b137fa7d0f8e1f01000000000000000003a0860100000000002251209a9ea267884f5549c206b2aec2bd56d98730f90532ea7f7154d4d4f923b7e3bb0000000000000000326a3035516a706f3772516e7751657479736167477a6334526a376f737758534c6d4d7141754332416255364c464646476a38801a060000000000225120c9929543dfa1e0bb84891acd47bfa6546b05e26b7a04af8eb6765fcc969d565f01409e325889515ed47099fdd7098e6fafdc880b21456d3f368457de923f4229286e34cef68816348a0581ae5885ede248a35ac4b09da61a7b9b90f34c200872d2e300000000"}
 	txids = []string{"8e5d37c768acc4f3e794a10ad27bf0256237c80c22fa67117e3e3e1aec22ea5f"}
+	// index of unspent output in prevTxs
 	inputIndexs = []uint32{0}
+	// output:
 	addresses = []string{"tb1pexff2s7l58sthpyfrtx500ax234stcnt0gz2lr4kwe0ue95a2e0srxsc68", "tb1pn202yeugfa25nssxk2hv902kmxrnp7g9xt487u256n20jgahuwasdcjfdw"}
 	amounts = []uint64{50000, 40000}
+	// 1. Construct an unsigned transaction, containing all transaction information except the signature
 	baseTx, err = musig2.GenerateRawTx(prevTxs, txids, inputIndexs, addresses, amounts)
 	if err != nil {
 		log.Fatal(err)
 	}
+	// unsigned raw tx for check on chain
 	unsignedTx, err = musig2.GetUnsignedTx(baseTx)
 	if err != nil {
 		log.Fatal(err)
@@ -126,23 +141,29 @@ func main() {
 
 	var thresholdTx string
 	for i := 0; i < len(txids); i++ {
+		// 2. Calculate the aggregated public key of the signers
 		pubkeyBC, err := musig2.GetAggPublicKey([]string{pubkeyB, pubkeyC})
 		if err != nil {
 			log.Fatal(err)
 		}
+		// 3. Calculate sighash for one input
 		sighash, err := musig2.GetSighash(baseTx, txids[i], inputIndexs[i], pubkeyBC, 1)
 		if err != nil {
 			log.Fatal(err)
 		}
 		log.Println("Sighash: ", sighash)
+		// start musig2 communication
+		// 4. Get your own state
 		round1State0 := musig2.GetRound1State()
+		// encode the state for persistence
 		round1State0Encode, err := musig2.EncodeRound1State(round1State0)
 		if err != nil {
 			log.Fatal(err)
 		}
+		// decode to the state from persistently store
 		round1State0 = musig2.DecodeRound1State(round1State0Encode)
 		round1State1 := musig2.GetRound1State()
-
+		// 5. Get your own first round of messages
 		round1Msg0, err := musig2.GetRound1Msg(round1State0)
 		if err != nil {
 			log.Fatal(err)
@@ -151,6 +172,8 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
+		// 6. Collect the first round of messages from all current signers to
+		//    generate its own second round of messages and broadcast it
 		round2Msg0, err := musig2.GetRound2Msg(round1State0, sighash, privateB, []string{pubkeyB, pubkeyC}, []string{round1Msg1})
 		if err != nil {
 			log.Fatal(err)
@@ -159,23 +182,28 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
+		// 7. Collect second round of messages from all current signers to generate signatures
 		multiSignature, err := musig2.GetAggSignature([]string{round2Msg0, round2Msg1})
 		if err != nil {
 			log.Fatal(err)
 		}
 
 		log.Println("MultiSignature: ", multiSignature)
+		// 8. Based on all signer public keys and the aggregated public keys of
+		//    the people who are signing to generate signature auxiliary information
 		controlBlock, err := musig2.GenerateControlBlock([]string{pubkeyA, pubkeyB, pubkeyC}, 2, pubkeyBC)
 		if err != nil {
 			log.Fatal(err)
 		}
 		log.Println("Control Block: ", controlBlock)
+		// 9. Put signature into the transaction
 		thresholdTx, err = musig2.BuildThresholdTx(baseTx, multiSignature, pubkeyBC, controlBlock, txids[i], inputIndexs[i])
 		if err != nil {
 			log.Fatal(err)
 		}
 		log.Println("Current Threshold Tx: ", thresholdTx)
 	}
+	// 10. When all inputs have been signed, the transaction is constructed
 	log.Println("Final Threshold Tx: ", thresholdTx)
 
 	// other tool func test
