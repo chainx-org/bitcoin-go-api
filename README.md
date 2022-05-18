@@ -8,3 +8,6 @@ Musig2 is an upgraded version of the Musig multi-signature scheme. It only requi
 
 Doc: [English](./Musig2Doc.md) | [中文](Musig2Doc.CN.md)
 
+# Notes
+
+Note that only go language calls are supported here. Due to the cross-compilation of cgo, it is not applicable to use gomobile to package into ios/andriod.
