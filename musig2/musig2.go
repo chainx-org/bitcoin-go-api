@@ -1,7 +1,9 @@
 package musig2
 
 /*
-#cgo LDFLAGS: -L../lib -lmusig2_dll
+#cgo darwin LDFLAGS: -L../lib/mac -lmusig2_dll
+#cgo linux LDFLAGS: -L../lib/linux -lmusig2_dll
+#cgo windows LDFLAGS: -L../lib/windows -lmusig2_dll
 #include <stdlib.h>
 #include "../lib/Musig2Header.h"
 */
